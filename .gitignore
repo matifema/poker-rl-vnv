@@ -1,0 +1,20 @@
+# Bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Testing
+.pytest_cache/
+
+# Training output (model weights are large; keep summaries)
+training_output/*.npz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
