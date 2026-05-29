@@ -49,7 +49,7 @@ class TrainingProtocol:
     patience: int = 15
     parallel: bool = False
     seed: int = 42
-    simultaneous: bool = False
+    simultaneous: bool = True
 
     def __init__(self):
         self.history: list[dict] = []
