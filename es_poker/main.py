@@ -22,7 +22,7 @@ def main():
     p.add_argument(
         "--sigma", type=float, default=0.04, help="deviazione standard rumore"
     )
-    p.add_argument("--alpha", type=float, default=0.02, help="learning rate")
+    p.add_argument("--alpha", type=float, default=0.001, help="learning rate")
     p.add_argument("--parallel", action="store_true", help="usa multiprocessing")
     p.add_argument(
         "-o", "--output", default="./training_output", help="directory output"

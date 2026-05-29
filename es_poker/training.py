@@ -43,7 +43,7 @@ class TrainingProtocol:
     small_blind: int = 10
     pop_size: int = 40
     sigma: float = 0.04
-    alpha: float = 0.02
+    alpha: float = 0.001
     generations: int = 25
     hands_per_eval: int = 200
     patience: int = 15

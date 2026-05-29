@@ -1,5 +1,6 @@
-# ottimizzatore ES con campionamento antitetico e fitness rank-based
-# update: θ' = θ + α/(N·σ) · Σ((f⁺ − f⁻) · ε)
+# ottimizzatore ES con campionamento antitetico (OpenAI ES, Algo 1)
+# ∇ = 1/(2n·σ²) · Σ_i (F⁺_i − F⁻_i) · ε_i   con ε_i ~ N(0, σ²I)
+# update: θ' = θ + α · ∇
 
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -145,21 +146,21 @@ class EvolutionStrategies:
             for idx, task in enumerate(tasks):
                 raw[idx], winrates[idx] = _eval_individuo(task)
 
-        # fitness rank-based: converte profit grezzi in ranghi [-0.5, 0.5]
-        ranks = np.argsort(np.argsort(raw)).astype(np.float32)
-        total_r = float(len(ranks) - 1)
-        fitness = (ranks / max(total_r, 1.0)) - 0.5
+        # fitness: z-score normalization (paper Sec 3, standardizzaz. dei ritorni)
+        raw_mean = np.mean(raw)
+        raw_std = np.std(raw) + 1e-8
+        fitness = (raw - raw_mean) / raw_std
 
-        # ricostruisce coppie: pari=positivi, dispari=negativi
+        # ricostruisce coppie antitetiche: pari=+ε, dispari=−ε
         f_pos = fitness[0::2]
         f_neg = fitness[1::2]
         diff = f_pos - f_neg
 
-        # aggiornamento pesato
+        # ∇ = 1/(2n·σ²) · Σ_i diff_i · ε_i   (paper Algo 1, n = half_pop)
         update = np.zeros(n_params, dtype=np.float32)
         for i in range(self.half_pop):
             update += diff[i] * eps[i]
-        update /= self.half_pop * self.sigma
+        update /= (2 * self.half_pop * self.sigma * self.sigma)
 
         new_weights = base + self.alpha * update
         parent.set_weights(new_weights)
