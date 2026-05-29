@@ -13,6 +13,7 @@ sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1.1)
 
 PALETTE = {"A": "#4c72b0", "B": "#dd8452", "A2": "#55a868"}
+SPRINT_LABEL = {"A": "A vs Random", "B": "B vs A", "A2": "A2 vs B"}
 
 
 def _carica_df(path: str | Path) -> pd.DataFrame:
@@ -35,11 +36,12 @@ def _plotta(df: pd.DataFrame):
 
     for nome in sprint_nomi:
         g = df[df["sprint"] == nome]
+        label = SPRINT_LABEL.get(nome, nome)
         col = PALETTE.get(nome, "#999")
 
         # profit medio ± std
         ax_p.plot(g["generation"], g["profit_mean"],
-                  "o-", color=col, label=f"sprint {nome}", markersize=5, linewidth=2)
+                  "o-", color=col, label=label, markersize=5, linewidth=2)
         ax_p.fill_between(g["generation"],
                           g["profit_mean"] - g["profit_std"],
                           g["profit_mean"] + g["profit_std"],
@@ -55,7 +57,7 @@ def _plotta(df: pd.DataFrame):
 
         # spread profit (min–max)
         ax_sp.fill_between(g["generation"], g["profit_min"], g["profit_max"],
-                           color=col, alpha=0.15, label=f"sprint {nome}")
+                           color=col, alpha=0.15, label=label)
         ax_sp.plot(g["generation"], g["profit_mean"],
                    "-", color=col, linewidth=2)
 

@@ -1,5 +1,7 @@
 # protocollo di self-play a 3 sprint (Prof. Tronci)
-# sprint A: agente vs random → sprint B: nuovo agente vs A → sprint A': vs B
+# sprint A: random init vs random
+# sprint B: warm-start da A vs A congelato
+# sprint A': warm-start da B vs B congelato
 
 import csv
 import json
@@ -144,17 +146,19 @@ class TrainingProtocol:
         self.history.extend(logs_A)
         _salva_pesi(nn_A, out / "agent_A.npz")
 
-        # sprint 2: agente B vs A (congelato)
+        # sprint 2: agente B vs A (warm-start da A, A congelato)
         print("\n=== Sprint 2: Agente B vs Agente A ===")
-        nn_B = SmallNN(rng)
+        nn_B = SmallNN()
+        nn_B.set_weights(nn_A.get_weights().copy())
         frozen_A = ESAgent(nn_A, self.start_credits, self.big_blind)
         nn_B, logs_B = self._run_sprint("B", nn_B, frozen_A, rng)
         self.history.extend(logs_B)
         _salva_pesi(nn_B, out / "agent_B.npz")
 
-        # sprint 3: agente A' vs B (iterazione self-play)
+        # sprint 3: agente A' vs B (warm-start da B, iterazione self-play)
         print("\n=== Sprint 3: Agente A' vs Agente B ===")
-        nn_A2 = SmallNN(rng)
+        nn_A2 = SmallNN()
+        nn_A2.set_weights(nn_B.get_weights().copy())
         frozen_B = ESAgent(nn_B, self.start_credits, self.big_blind)
         nn_A2, logs_A2 = self._run_sprint("A2", nn_A2, frozen_B, rng)
         self.history.extend(logs_A2)
