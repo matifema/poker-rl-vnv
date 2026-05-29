@@ -267,7 +267,7 @@ class TrainingProtocol:
             "vs_B_winrate": wr_B,
         }
 
-        print("\nPerformance Agente A':")
+        print("\nPerformance Agente A:")
         for opp, key in [("Random", "vs_random"), ("Agente A", "vs_A"), ("Agente B", "vs_B")]:
             print(f"  vs {opp}: {summary[f'{key}_profit']:+.2f} chips/mano  (wr: {summary[f'{key}_winrate']:.1%})")
 

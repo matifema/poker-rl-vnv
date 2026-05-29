@@ -22,7 +22,7 @@ Two agents train against each other in lockstep — each generation, A updates a
 | vs Agent B | 53.0% | -1.7 |
 | vs TightAgent | 72.8% | +33.2 |
 
-**Nash equilibrium**: A' vs original A at 47.6%, A' vs B at 53.0% — both within 3-4% of 50%. The simultaneous co-evolution learns to exploit B while staying near-Nash against A, avoiding the flat-gradient plateau that plagued the sequential warm-start approach.
+**Nash equilibrium**: co-evolved A vs original A at 47.6%, A vs B at 53.0% — both within 3-4% of 50%. The simultaneous co-evolution learns to exploit B while staying near-Nash against A, avoiding the flat-gradient plateau that plagued the sequential warm-start approach.
 
 ## Quick Start
 
