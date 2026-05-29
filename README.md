@@ -11,15 +11,7 @@ Neural network agent for Texas Hold'em trained via Evolution Strategies with sel
 
 ## Self-Play Protocol
 
-**Default: simultaneous co-evolution.** Two agents train against each other in lockstep — each generation, A updates against frozen B, then B updates against the updated A. This creates a continuous arms race that prevents gradient collapse near equilibrium.
-
-**Alternative: sequential (`--sequential`).** 3-sprint curriculum with warm-start:
-
-| Sprint | Training | Opponent | Init | Purpose |
-|--------|----------|----------|------|---------|
-| A | Agent A | Random | Random | Learn basic poker |
-| B | Agent B | Frozen A | From A's weights | Learn to counter A |
-| A' | Agent A' | Frozen B | From B's weights | Converge toward Nash |
+Two agents train against each other in lockstep — each generation, A updates against frozen B, then B updates against the updated A. This creates a continuous arms race that prevents gradient collapse near equilibrium.
 
 ## Results (simultaneous co-evolution, sigma=0.04, alpha=0.001, 30 gens, 500 hands, pop 100)
 
@@ -35,7 +27,7 @@ Neural network agent for Texas Hold'em trained via Evolution Strategies with sel
 ## Quick Start
 
 ```bash
-# Train (defaults: co-evolution, sigma=0.04, alpha=0.001, 25 gens, 200 hands, pop 40)
+# Train (defaults: sigma=0.04, alpha=0.001, 25 gens, 200 hands, pop 40)
 python -m es_poker.main train
 
 # Full training run
@@ -43,9 +35,6 @@ python -m es_poker.main train --gens 30 --hands 500 --pop 100
 
 # Train with parallelism
 python -m es_poker.main train --gens 30 --hands 500 --pop 100 --parallel
-
-# Sequential mode (3-sprint warm-start)
-python -m es_poker.main train --sequential
 
 # Evaluate a trained agent
 python -m es_poker.main evaluate training_output/agent_A2.npz
@@ -68,7 +57,6 @@ python -m pytest es_poker/tests/ -v
 | `--alpha` | 0.001 | Learning rate |
 | `--seed` | 42 | Random seed |
 | `--parallel` | — | Enable multiprocessing |
-| `--sequential` | — | Use sequential warm-start instead of co-evolution |
 | `-o` | `./training_output` | Output directory |
 
 ## Dependencies

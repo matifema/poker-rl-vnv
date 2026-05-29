@@ -1,7 +1,6 @@
-# protocollo di self-play a 3 sprint (Prof. Tronci)
-# sprint A: random init vs random
-# sprint B-C: co-evoluzione simultanea A ↔ B (opzionale)
-# altrimenti: warm-start sequenziale B vs A, A2 vs B
+# protocollo di self-play (Prof. Tronci)
+# sprint 1: agente A vs random
+# sprint 2: co-evoluzione simultanea A ↔ B
 
 import csv
 import json
@@ -49,7 +48,6 @@ class TrainingProtocol:
     patience: int = 15
     parallel: bool = False
     seed: int = 42
-    simultaneous: bool = True
 
     def __init__(self):
         self.history: list[dict] = []
@@ -231,50 +229,33 @@ class TrainingProtocol:
         # sprint 1: agente A vs random
         print("=== Sprint 1: Agente A vs Random ===")
         nn_A = SmallNN(rng)
+        nn_A_orig_weights = nn_A.get_weights().copy()
         nn_A, logs_A = self._run_sprint("A", nn_A, RandomAgent(), rng)
         self.history.extend(logs_A)
         _salva_pesi(nn_A, out / "agent_A.npz")
 
-        if self.simultaneous:
-            # co-evoluzione: A e B si allenano simultaneamente
-            print("\n=== Co-evoluzione: Agente A ↔ Agente B ===")
-            nn_B = SmallNN()
-            nn_B.set_weights(nn_A.get_weights().copy())
-            nn_A, nn_B, logs_coev = self._run_coevolution(nn_A, nn_B, rng)
-            self.history.extend(logs_coev)
-            _salva_pesi(nn_A, out / "agent_A_coev.npz")
-            _salva_pesi(nn_B, out / "agent_B_coev.npz")
-            final_nn = nn_A  # valutiamo A
-            nn_A_orig = nn_A  # per la valutazione
-        else:
-            # sprint 2: agente B vs A (warm-start da A, A congelato)
-            print("\n=== Sprint 2: Agente B vs Agente A ===")
-            nn_B = SmallNN()
-            nn_B.set_weights(nn_A.get_weights().copy())
-            frozen_A = ESAgent(nn_A, self.start_credits, self.big_blind)
-            nn_B, logs_B = self._run_sprint("B", nn_B, frozen_A, rng)
-            self.history.extend(logs_B)
-            _salva_pesi(nn_B, out / "agent_B.npz")
-
-            # sprint 3: agente A' vs B (warm-start da B, B congelato)
-            print("\n=== Sprint 3: Agente A' vs Agente B ===")
-            nn_A2 = SmallNN()
-            nn_A2.set_weights(nn_B.get_weights().copy())
-            frozen_B = ESAgent(nn_B, self.start_credits, self.big_blind)
-            nn_A2, logs_A2 = self._run_sprint("A2", nn_A2, frozen_B, rng)
-            self.history.extend(logs_A2)
-            _salva_pesi(nn_A2, out / "agent_A2.npz")
-            final_nn = nn_A2
-            nn_A_orig = nn_A
+        # sprint 2: co-evoluzione simultanea A ↔ B
+        print("\n=== Co-evoluzione: Agente A ↔ Agente B ===")
+        nn_B = SmallNN()
+        nn_B.set_weights(nn_A.get_weights().copy())
+        nn_A, nn_B, logs_coev = self._run_coevolution(nn_A, nn_B, rng)
+        self.history.extend(logs_coev)
+        _salva_pesi(nn_A, out / "agent_A_coev.npz")
+        _salva_pesi(nn_B, out / "agent_B_coev.npz")
 
         # valutazione finale
         print("\n=== Valutazione Finale ===")
-        final = ESAgent(final_nn, self.start_credits, self.big_blind)
-        frozen_A_agent = ESAgent(nn_A_orig, self.start_credits, self.big_blind)
+        final = ESAgent(nn_A, self.start_credits, self.big_blind)
+        frozen_A_agent = ESAgent(nn_A, self.start_credits, self.big_blind)
         frozen_B_agent = ESAgent(nn_B, self.start_credits, self.big_blind)
 
+        # restore original A weights for baseline comparison
+        nn_A_orig = SmallNN()
+        nn_A_orig.set_weights(nn_A_orig_weights)
+        frozen_A_orig = ESAgent(nn_A_orig, self.start_credits, self.big_blind)
+
         vs_random, wr_random = valuta_agente(final, RandomAgent(), self._game_config, num_hands=500)
-        vs_A, wr_A = valuta_agente(final, frozen_A_agent, self._game_config, num_hands=500)
+        vs_A, wr_A = valuta_agente(final, frozen_A_orig, self._game_config, num_hands=500)
         vs_B, wr_B = valuta_agente(final, frozen_B_agent, self._game_config, num_hands=500)
 
         summary = {
