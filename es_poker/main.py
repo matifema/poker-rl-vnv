@@ -24,7 +24,7 @@ def main():
     p_train.add_argument(
         "--pop", type=int, default=40, help="Population size (must be even)"
     )
-    p_train.add_argument("--sigma", type=float, default=0.05, help="Noise std dev")
+    p_train.add_argument("--sigma", type=float, default=0.04, help="Noise std dev")
     p_train.add_argument("--alpha", type=float, default=0.02, help="Learning rate")
     p_train.add_argument("--credits", type=int, default=1000, help="Starting credits")
     p_train.add_argument("--bb", type=int, default=20, help="Big blind")

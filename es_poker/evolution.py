@@ -140,7 +140,7 @@ class EvolutionStrategies:
     def __init__(
         self,
         population_size: int = 60,
-        sigma: float = 0.05,
+        sigma: float = 0.08,
         alpha: float = 0.02,
         rng: np.random.Generator | None = None,
     ):

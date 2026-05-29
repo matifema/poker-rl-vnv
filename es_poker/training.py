@@ -48,7 +48,7 @@ class TrainingProtocol:
         self.game_config = {**DEFAULT_GAME_CONFIG, **(game_config or {})}
         es_cfg = {
             "population_size": 40,
-            "sigma": 0.05,
+            "sigma": 0.04,
             "alpha": 0.02,
         }
         es_cfg.update(es_config or {})
@@ -137,10 +137,7 @@ class TrainingProtocol:
             best_nn.set_weights(best_indiv_weights)
             path = self.output_dir / f"best_{name}.npz"
             _save_weights(best_nn, path)
-            print(
-                f"  [{name}] Best individual saved: "
-                f"wr={best_indiv_wr:.1%} → {path}"
-            )
+            print(f"  [{name}] Best individual saved: wr={best_indiv_wr:.1%} → {path}")
 
         return agent_nn, gen_logs
 
