@@ -53,7 +53,7 @@ def main():
         # validazione automatica
         print("\n" + "=" * 50)
         print("Esecuzione validazione su agente finale...")
-        best = Path(args.output) / "agent_A2.npz"
+        best = Path(args.output) / "agent_A_coev.npz"
         if best.exists():
             validation_suite(best, proto._game_config, args.output)
 

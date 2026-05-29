@@ -26,7 +26,7 @@ def _carica_pesi(network: SmallNN, path: Path):
 
 
 class TrainingProtocol:
-    """orchestra il curriculum di self-play a 3 sprint
+    """orchestra il curriculum di self-play: sprint vs random + co-evoluzione
 
     attributi di configurazione (modificabili prima di chiamare .run()):
       output_dir, num_players, start_credits, big_blind, small_blind,
@@ -229,10 +229,10 @@ class TrainingProtocol:
         # sprint 1: agente A vs random
         print("=== Sprint 1: Agente A vs Random ===")
         nn_A = SmallNN(rng)
-        nn_A_orig_weights = nn_A.get_weights().copy()
         nn_A, logs_A = self._run_sprint("A", nn_A, RandomAgent(), rng)
         self.history.extend(logs_A)
         _salva_pesi(nn_A, out / "agent_A.npz")
+        nn_A_pre_coev = nn_A.get_weights().copy()
 
         # sprint 2: co-evoluzione simultanea A ↔ B
         print("\n=== Co-evoluzione: Agente A ↔ Agente B ===")
@@ -246,16 +246,15 @@ class TrainingProtocol:
         # valutazione finale
         print("\n=== Valutazione Finale ===")
         final = ESAgent(nn_A, self.start_credits, self.big_blind)
-        frozen_A_agent = ESAgent(nn_A, self.start_credits, self.big_blind)
         frozen_B_agent = ESAgent(nn_B, self.start_credits, self.big_blind)
 
-        # restore original A weights for baseline comparison
-        nn_A_orig = SmallNN()
-        nn_A_orig.set_weights(nn_A_orig_weights)
-        frozen_A_orig = ESAgent(nn_A_orig, self.start_credits, self.big_blind)
+        # confronto con A pre-coevoluzione (addestrato solo vs random)
+        nn_A_pre = SmallNN()
+        nn_A_pre.set_weights(nn_A_pre_coev)
+        frozen_A_pre = ESAgent(nn_A_pre, self.start_credits, self.big_blind)
 
         vs_random, wr_random = valuta_agente(final, RandomAgent(), self._game_config, num_hands=500)
-        vs_A, wr_A = valuta_agente(final, frozen_A_orig, self._game_config, num_hands=500)
+        vs_A, wr_A = valuta_agente(final, frozen_A_pre, self._game_config, num_hands=500)
         vs_B, wr_B = valuta_agente(final, frozen_B_agent, self._game_config, num_hands=500)
 
         summary = {

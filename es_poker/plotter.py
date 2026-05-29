@@ -13,7 +13,7 @@ sns.set_style("whitegrid")
 sns.set_context("notebook", font_scale=1.1)
 
 PALETTE = {"A": "#4c72b0", "B": "#dd8452", "A2": "#55a868"}
-SPRINT_LABEL = {"A": "A vs Random", "B": "B vs A", "A2": "A2 vs B"}
+SPRINT_LABEL = {"A": "A vs Random", "coev-A": "A (coev)", "coev-B": "B (coev)"}
 
 
 def _carica_df(path: str | Path) -> pd.DataFrame:
