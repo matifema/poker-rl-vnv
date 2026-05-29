@@ -155,7 +155,7 @@ class TrainingProtocol:
         self.history.extend(logs_B)
         _salva_pesi(nn_B, out / "agent_B.npz")
 
-        # sprint 3: agente A' vs B (warm-start da B, iterazione self-play)
+        # sprint 3: agente A' vs B (warm-start da B, B congelato)
         print("\n=== Sprint 3: Agente A' vs Agente B ===")
         nn_A2 = SmallNN()
         nn_A2.set_weights(nn_B.get_weights().copy())
