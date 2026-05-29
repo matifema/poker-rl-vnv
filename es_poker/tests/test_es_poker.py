@@ -1,4 +1,4 @@
-"""Unit tests for action masking, invariant checking, and feature extraction."""
+# test unitari: action masking, invarianti, estrazione feature
 
 import numpy as np
 import pytest
@@ -51,7 +51,7 @@ class TestActionMasking:
             action = agent(state)
             done, hand_over, _ = game.step(action)
             assert state.valid_actions[action], (
-                f"Invalid action {action}, valid={state.valid_actions}"
+                f"azione invalida {action}, valid={state.valid_actions}"
             )
             if done:
                 game.reset()
@@ -70,9 +70,9 @@ class TestInvariants:
         for _ in range(20):
             state = game.active_state
             f = extract_features(state, start_credits=1000, big_blind=20)
-            assert f.shape == (FEATURE_DIM,), f"Expected ({FEATURE_DIM},), got {f.shape}"
+            assert f.shape == (FEATURE_DIM,), f"atteso ({FEATURE_DIM},), ottenuto {f.shape}"
             assert f.dtype == np.float32
-            assert np.all(np.isfinite(f)), f"Non-finite values in features: {f}"
+            assert np.all(np.isfinite(f)), f"valori non finiti nelle feature: {f}"
             _, valid = game.get_valid_actions()
             action = next(iter(valid))
             done, _, _ = game.step(action)
@@ -111,7 +111,7 @@ class TestFeatures:
         for _ in range(30):
             state = game.active_state
             f = extract_features(state, start_credits=1000, big_blind=20)
-            assert np.all(f >= 0.0), f"Negative feature: {f}"
+            assert np.all(f >= 0.0), f"feature negativa: {f}"
             _, valid = game.get_valid_actions()
             action = next(iter(valid))
             done, _, _ = game.step(action)
@@ -137,8 +137,10 @@ class TestEvolution:
             "small_blind": 5,
         }
 
-        nn, stats = es.train_generation(nn, RandomAgent(), game_config, hands_per_eval=20)
+        nn, stats = es.train_generation(
+            nn, RandomAgent(), game_config, hands_per_eval=20, parallel=False
+        )
 
         new_weights = nn.get_weights()
-        assert not np.allclose(old_weights, new_weights), "Weights did not change"
+        assert not np.allclose(old_weights, new_weights), "pesi non cambiati"
         assert "profit_mean" in stats

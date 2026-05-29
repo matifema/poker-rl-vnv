@@ -1,54 +1,50 @@
-"""Verification & Validation: unit tests, invariant checking, and performance graphs."""
+# verifica e validazione: test unitari, invarianti, report performance
 
 import json
 from pathlib import Path
 from typing import Callable
 
 import numpy as np
-
 from pokerl.agents.agent import PokerAgent
-from pokerl.game import Game
 from pokerl.enums import PokerMoves
+from pokerl.game import Game
 
 from .agent import ESAgent, RandomAgent, masked_argmax
+from .evolution import valuta_agente
+from .features import FEATURE_DIM, extract_features
 from .network import SmallNN
-from .features import extract_features, FEATURE_DIM
-from .evolution import evaluate_agent
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
-def _make_random_nn(rng: np.random.Generator | None = None) -> SmallNN:
+def _rete_random(rng: np.random.Generator | None = None) -> SmallNN:
     return SmallNN(rng or np.random.default_rng())
 
 
 # ---------------------------------------------------------------------------
-# Verification: Action Masking Unit Tests
+# test unitari: action masking
 # ---------------------------------------------------------------------------
 
 
 def test_action_masking_all_valid():
-    """When all actions are valid, the mask must not alter the argmax."""
+    """tutte le azioni valide → maschera non altera argmax"""
+
     logits = np.array([1.0, 2.0, 0.5, -0.3, 4.0, 3.0, -1.0], dtype=np.float32)
     valid = np.ones(7, dtype=bool)
     action = masked_argmax(logits, valid)
-    assert action == 4, f"Expected action 4 (max logit=4.0), got {action}"
+    assert action == 4, f"attesa azione 4 (max logit=4.0), ottenuta {action}"
 
 
 def test_action_masking_single_valid():
-    """When only one action is valid, it must always be chosen."""
+    """una sola azione valida → sempre scelta"""
     logits = np.array([100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
     for i in range(7):
         valid = np.zeros(7, dtype=bool)
         valid[i] = True
         action = masked_argmax(logits, valid)
-        assert action == i, f"Only action {i} is valid but got {action}"
+        assert action == i, f"solo azione {i} valida ma ottenuta {action}"
 
 
 def test_action_masking_never_picks_invalid():
-    """Randomised test: the agent must never output an invalid action."""
+    """test randomizzato: mai azione invalida"""
     rng = np.random.default_rng(1234)
     for _ in range(1000):
         logits = rng.standard_normal(7).astype(np.float32)
@@ -57,26 +53,27 @@ def test_action_masking_never_picks_invalid():
             valid[rng.integers(0, 7)] = True
         action = masked_argmax(logits, valid)
         assert valid[action], (
-            f"Picked invalid action {action} with logits={logits} mask={valid}"
+            f"azione invalida {action} con logits={logits} mask={valid}"
         )
 
 
 def test_action_masking_inf_handling():
-    """Logits with -inf values should not break the masking."""
-    logits = np.array([-np.inf, 1.0, 2.0, -np.inf, 0.0, -1.0, -np.inf],
-                      dtype=np.float32)
+    """logits con -inf non rompono la maschera"""
+    logits = np.array(
+        [-np.inf, 1.0, 2.0, -np.inf, 0.0, -1.0, -np.inf], dtype=np.float32
+    )
     valid = np.array([True, True, True, False, True, True, False])
     action = masked_argmax(logits, valid)
     assert action == 2
 
 
 # ---------------------------------------------------------------------------
-# Verification: Invariant Checking
+# controllo invarianti
 # ---------------------------------------------------------------------------
 
 
 def test_invariant_no_value_error(game_config: dict | None = None):
-    """The agent must NEVER raise a ValueError, regardless of NN weights."""
+    """l'agente non deve mai sollevare ValueError con pesi NN casuali"""
     cfg = game_config or {
         "num_players": 4,
         "start_credits": 1000,
@@ -86,9 +83,9 @@ def test_invariant_no_value_error(game_config: dict | None = None):
     rng = np.random.default_rng(42)
 
     for trial in range(50):
-        nn = _make_random_nn(rng)
+        nn = _rete_random(rng)
         agent = ESAgent(nn, cfg["start_credits"], cfg["big_blind"])
-        all_players = [agent, RandomAgent(), RandomAgent(), RandomAgent()]
+        players = [agent, RandomAgent(), RandomAgent(), RandomAgent()]
         game = Game(**cfg)
         game.reset()
 
@@ -97,7 +94,7 @@ def test_invariant_no_value_error(game_config: dict | None = None):
         while steps < 500:
             state = game.active_state
             try:
-                action = all_players[game.active_player](state)
+                action = players[game.active_player](state)
                 done, hand_over, _ = game.step(action)
             except ValueError:
                 error = True
@@ -106,28 +103,28 @@ def test_invariant_no_value_error(game_config: dict | None = None):
                 game.reset()
             steps += 1
 
-        assert not error, f"ValueError on trial {trial} after {steps} steps"
+        assert not error, f"ValueError al trial {trial} dopo {steps} passi"
 
 
 # ---------------------------------------------------------------------------
-# Validation: Performance Stats & Graphs
+# validazione: report performance
 # ---------------------------------------------------------------------------
 
 
-def print_validation_report(
+def stampa_report(
     agent_fn: Callable,
     opponent_fn: Callable,
     game_config: dict,
     num_hands: int = 500,
-    label: str = "Agent",
+    label: str = "Agente",
 ) -> dict:
-    """Run a mirrored validation match and print a concise report."""
-    profit, winrate = evaluate_agent(agent_fn, opponent_fn, game_config, num_hands)
+    """esegue match di validazione speculare e stampa report"""
+    profit, winrate = valuta_agente(agent_fn, opponent_fn, game_config, num_hands)
 
-    print(f"\n--- Validation: {label} ---")
-    print(f"  Hands played     : {num_hands}")
-    print(f"  Mean profit/hand : {profit:+.3f}")
-    print(f"  Win rate         : {winrate:.1%}")
+    print(f"\n--- Validazione: {label} ---")
+    print(f"  mani giocate     : {num_hands}")
+    print(f"  profit medio     : {profit:+.3f}")
+    print(f"  win rate         : {winrate:.1%}")
 
     return {
         "label": label,
@@ -137,12 +134,12 @@ def print_validation_report(
     }
 
 
-def run_validation_suite(
+def validation_suite(
     agent_weights_path: str | Path,
     game_config: dict | None = None,
     output_dir: str | Path = "./training_output",
 ):
-    """Full validation suite: agent vs Random, agent vs Tight baseline."""
+    """validazione completa: agente vs Random, agente vs Tight"""
     from .training import TrainingProtocol
 
     cfg = game_config or {
@@ -152,17 +149,17 @@ def run_validation_suite(
         "small_blind": 10,
     }
 
-    agent = TrainingProtocol.load_agent(
+    agent = TrainingProtocol.carica_agente(
         agent_weights_path, cfg["start_credits"], cfg["big_blind"]
     )
 
     class TightAgent(PokerAgent):
-        """Baseline: only plays premium hands (pair JJ+ or suited A)."""
+        """gioca solo mani premium (coppia JJ+ o suited A)"""
 
         def __call__(self, state: Game.StateView) -> int:
             vu = state.valid_actions
             cards = state.player_cards
-            high_ranks = {11, 12, 13}  # J, Q, K, A
+            high_ranks = {11, 12, 13}
             suited = cards[0].suit == cards[1].suit
             strong = (
                 cards[0].rank in high_ranks
@@ -178,14 +175,13 @@ def run_validation_suite(
             return PokerMoves.FOLD
 
     reports = {}
-    reports["vs_random"] = print_validation_report(
-        agent, RandomAgent(), cfg, num_hands=500, label="Agent vs Random"
+    reports["vs_random"] = stampa_report(
+        agent, RandomAgent(), cfg, num_hands=500, label="Agente vs Random"
     )
-    reports["vs_tight"] = print_validation_report(
-        agent, TightAgent(), cfg, num_hands=500, label="Agent vs Tight"
+    reports["vs_tight"] = stampa_report(
+        agent, TightAgent(), cfg, num_hands=500, label="Agente vs Tight"
     )
 
-    # Save
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "validation_report.json", "w") as f:

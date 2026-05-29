@@ -1,4 +1,4 @@
-"""Feature extraction: converts a poker StateView into a normalized vector."""
+# estrazione feature: converte StateView in vettore normalizzato (26 dim)
 
 import numpy as np
 from pokerl.game import Game
@@ -13,39 +13,36 @@ def extract_features(
     start_credits: float = 1000.0,
     big_blind: float = 20.0,
 ) -> np.ndarray:
-    """Convert a StateView into a normalized feature vector of shape (FEATURE_DIM,).
+    """converte StateView in vettore normalizzato (26 dim)
 
-    Features (26 total):
-      Card features (19):
-        0-3   : hole cards (rank, suit) x 2
-        4-13  : community cards (rank, suit) x 5, zero-padded
-        14    : hand strength (1.0=straight flush ... 0.0=nothing)
-        15    : is pocket pair (1.0/0.0)
-        16    : is suited (1.0/0.0)
-        17    : high card rank / 13
-        18    : low card rank / 13
+    feature carte (19):
+      0-3   : hole cards (rank, suit) x 2
+      4-13  : community cards (rank, suit) x 5, zero-padded
+      14    : forza mano (1.0=scala colore ... 0.0=niente)
+      15    : coppia in mano (1.0/0.0)
+      16    : suited (1.0/0.0)
+      17    : rank carta alta / 13
+      18    : rank carta bassa / 13
 
-      Situation features (7):
-        19    : active players / num_players
-        20    : stack in big blinds (clipped)
-        21    : pot / (pot + my_credits)  ->  pot commitment
-        22    : facing raise (1.0 if call needed, else 0.0)
-        23    : pot odds: call_needed / (pot + call_needed + 1)
-        24    : position (player_index / num_players)
-        25    : turn / 4.0
+    feature situazione (7):
+      19    : giocatori attivi / totale
+      20    : stack in big blind (clippato)
+      21    : pot / (pot + miei crediti)  →  pot commitment
+      22    : affronta rilancio (1.0 se call necessario)
+      23    : pot odds: call / (pot + call + 1)
+      24    : posizione (indice / num_players)
+      25    : turn / 4.0
     """
-
     f = np.zeros(FEATURE_DIM, dtype=np.float32)
-
     c0, c1 = state.player_cards
 
-    # --- hole cards (indices 0–3) ---
+    # hole cards (0-3)
     f[0] = c0.rank / 13.0
     f[1] = c0.suit / 4.0
     f[2] = c1.rank / 13.0
     f[3] = c1.suit / 4.0
 
-    # --- community cards (indices 4–13) ---
+    # community cards (4-13)
     idx = 4
     for i in range(5):
         if i < len(state.community_cards):
@@ -53,19 +50,19 @@ def extract_features(
             f[idx + 1] = state.community_cards[i].suit / 4.0
         idx += 2
 
-    # --- hand strength (index 14) ---
+    # forza mano (14)
     if state.player_hand:
         ranking, _ = eval_hand(state.player_hand)
         f[14] = max(0.0, (HandRanking.NONE - ranking) / 9.0)
 
-    # --- preflop hand categories (indices 15–18) ---
+    # categorie preflop (15-18)
     r0, r1 = c0.rank, c1.rank
-    f[15] = 1.0 if r0 == r1 else 0.0                     # pocket pair
-    f[16] = 1.0 if c0.suit == c1.suit else 0.0           # suited
-    f[17] = max(r0, r1) / 13.0                            # high card
-    f[18] = min(r0, r1) / 13.0                            # low card
+    f[15] = 1.0 if r0 == r1 else 0.0
+    f[16] = 1.0 if c0.suit == c1.suit else 0.0
+    f[17] = max(r0, r1) / 13.0
+    f[18] = min(r0, r1) / 13.0
 
-    # --- situation features (indices 19–25) ---
+    # situazione (19-25)
     active = int(np.sum(state.credits > 0))
     f[19] = active / max(state.num_players, 1)
 

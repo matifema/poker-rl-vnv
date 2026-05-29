@@ -1,14 +1,14 @@
 {
   "vs_random": {
-    "label": "Agent vs Random",
+    "label": "Agente vs Random",
     "num_hands": 500,
-    "mean_profit": 69.836,
-    "win_rate": 0.738
+    "mean_profit": 18.0,
+    "win_rate": 0.716
   },
   "vs_tight": {
-    "label": "Agent vs Tight",
+    "label": "Agente vs Tight",
     "num_hands": 500,
-    "mean_profit": 55.78645,
-    "win_rate": 0.946
+    "mean_profit": 39.34172893255743,
+    "win_rate": 0.766
   }
 }

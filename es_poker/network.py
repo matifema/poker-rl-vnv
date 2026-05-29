@@ -1,4 +1,4 @@
-"""Simple two-layer neural network for poker action selection."""
+# rete neurale 2-layer: Linear → ReLU → Linear (2183 parametri)
 
 import numpy as np
 
@@ -13,10 +13,7 @@ def _he_init(fan_in: int, fan_out: int) -> np.ndarray:
 
 
 class SmallNN:
-    """Two-layer feed-forward network: Linear -> ReLU -> Linear.
-
-    Weights are stored flat so they can be mutated directly by ES.
-    """
+    """rete feed-forward 26→64→7 con pesi serializzati flat per ES"""
 
     def __init__(self, rng: np.random.Generator | None = None):
         rng = rng or np.random.default_rng()
@@ -26,7 +23,6 @@ class SmallNN:
         self.W2 = _he_init(HIDDEN_DIM, ACTION_DIM)
         self.b2 = np.zeros(ACTION_DIM, dtype=np.float32)
 
-        # Record shapes so we can pack/unpack consistently
         self._shapes = {
             "W1": self.W1.shape,
             "b1": self.b1.shape,
@@ -35,29 +31,21 @@ class SmallNN:
         }
 
     def forward(self, x: np.ndarray) -> np.ndarray:
-        """x: (FEATURE_DIM,) -> logits: (ACTION_DIM,)"""
+        """x: (26,) → logits: (7,)"""
         x = np.asarray(x, dtype=np.float32)
-        h = np.maximum(0, x @ self.W1 + self.b1)  # ReLU
+        h = np.maximum(0, x @ self.W1 + self.b1)
         return (h @ self.W2 + self.b2).astype(np.float32, copy=False)
-
-    # ------------------------------------------------------------------
-    # Weight serialisation (for ES noise injection)
-    # ------------------------------------------------------------------
 
     @property
     def num_params(self) -> int:
-        return (
-            self.W1.size + self.b1.size + self.W2.size + self.b2.size
-        )
+        return self.W1.size + self.b1.size + self.W2.size + self.b2.size
 
     def get_weights(self) -> np.ndarray:
-        """Return a flat 1-D vector of all parameters."""
-        return np.concatenate(
-            [self.W1.ravel(), self.b1, self.W2.ravel(), self.b2]
-        )
+        """restituisce vettore flat di tutti i parametri"""
+        return np.concatenate([self.W1.ravel(), self.b1, self.W2.ravel(), self.b2])
 
     def set_weights(self, flat: np.ndarray):
-        """Restore parameters from a flat vector."""
+        """ripristina parametri da vettore flat"""
         cursor = 0
         for name in ("W1", "b1", "W2", "b2"):
             shape = self._shapes[name]

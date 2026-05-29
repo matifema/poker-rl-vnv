@@ -1,97 +1,70 @@
-"""Entry point: train or evaluate the ES poker agent."""
+# entry point: train, evaluate, verify
 
 import argparse
 import sys
 from pathlib import Path
 
-# Ensure pokerl is importable from the project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pokerl"))
 
-from es_poker.evaluate import run_validation_suite
+from es_poker.evaluate import validation_suite
 from es_poker.training import TrainingProtocol
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="ES Self-Play Poker Agent (Prof. Tronci protocol)"
-    )
+    parser = argparse.ArgumentParser(description="ES Self-Play Poker Agent")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # --- train ---
-    p_train = sub.add_parser("train", help="Run the full training curriculum")
-    p_train.add_argument("--gens", type=int, default=25, help="Generations per sprint")
-    p_train.add_argument("--hands", type=int, default=200, help="Hands per evaluation")
-    p_train.add_argument(
-        "--pop", type=int, default=40, help="Population size (must be even)"
+    # train
+    p = sub.add_parser("train", help="esegue il training completo")
+    p.add_argument("--gens", type=int, default=25, help="generazioni per sprint")
+    p.add_argument("--hands", type=int, default=500, help="mani per valutazione")
+    p.add_argument("--pop", type=int, default=100, help="dimensione popolazione")
+    p.add_argument(
+        "--sigma", type=float, default=0.04, help="deviazione standard rumore"
     )
-    p_train.add_argument("--sigma", type=float, default=0.04, help="Noise std dev")
-    p_train.add_argument("--alpha", type=float, default=0.02, help="Learning rate")
-    p_train.add_argument("--credits", type=int, default=1000, help="Starting credits")
-    p_train.add_argument("--bb", type=int, default=20, help="Big blind")
-    p_train.add_argument(
-        "--parallel",
-        type=int,
-        default=1,
-        help="Number of worker processes (1=sequential)",
+    p.add_argument("--alpha", type=float, default=0.02, help="learning rate")
+    p.add_argument("--parallel", action="store_true", help="usa multiprocessing")
+    p.add_argument(
+        "-o", "--output", default="./training_output", help="directory output"
     )
-    p_train.add_argument(
-        "-o", "--output", default="./training_output", help="Output dir"
-    )
+    p.add_argument("--seed", type=int, default=42, help="seed random")
 
-    # --- evaluate ---
-    p_eval = sub.add_parser("evaluate", help="Run validation on a trained agent")
-    p_eval.add_argument("weights", help="Path to .npz weights file")
-    p_eval.add_argument("--credits", type=int, default=1000, help="Starting credits")
-    p_eval.add_argument(
-        "-o", "--output", default="./training_output", help="Output dir"
-    )
+    # evaluate
+    e = sub.add_parser("evaluate", help="valida un agente salvato")
+    e.add_argument("weights", help="percorso file .npz")
 
-    # --- verify ---
-    p_verify = sub.add_parser(
-        "verify", help="Run verification tests (action masking, invariants)"
-    )
-    p_verify.add_argument("--credits", type=int, default=1000, help="Starting credits")
+    # verify
+    sub.add_parser("verify", help="test di verifica (action masking, invarianti)")
 
     args = parser.parse_args()
 
     if args.command == "train":
-        game_config = {
-            "num_players": 2,
-            "start_credits": args.credits,
-            "big_blind": args.bb,
-            "small_blind": args.bb // 2,
-        }
-        es_config = {
-            "population_size": args.pop,
-            "sigma": args.sigma,
-            "alpha": args.alpha,
-        }
-        protocol = TrainingProtocol(
-            output_dir=args.output,
-            game_config=game_config,
-            es_config=es_config,
-        )
-        protocol.run(
-            generations_per_sprint=args.gens,
-            hands_per_eval=args.hands,
-            parallel=args.parallel,
-        )
+        proto = TrainingProtocol()
+        proto.output_dir = args.output
+        proto.generations = args.gens
+        proto.hands_per_eval = args.hands
+        proto.pop_size = args.pop
+        proto.sigma = args.sigma
+        proto.alpha = args.alpha
+        proto.parallel = args.parallel
+        proto.seed = args.seed
+        proto.run()
 
-        # Auto-run validation
+        # validazione automatica
         print("\n" + "=" * 50)
-        print("Running validation suite on final agent...")
-        best_weights = Path(args.output) / "agent_A2.npz"
-        if best_weights.exists():
-            run_validation_suite(best_weights, game_config, args.output)
+        print("Esecuzione validazione su agente finale...")
+        best = Path(args.output) / "agent_A2.npz"
+        if best.exists():
+            validation_suite(best, proto._game_config, args.output)
 
     elif args.command == "evaluate":
-        game_config = {
+        cfg = {
             "num_players": 2,
-            "start_credits": args.credits,
+            "start_credits": 1000,
             "big_blind": 20,
             "small_blind": 10,
         }
-        run_validation_suite(args.weights, game_config, args.output)
+        validation_suite(args.weights, cfg, "./training_output")
 
     elif args.command == "verify":
         from es_poker.evaluate import (
@@ -102,33 +75,30 @@ def main():
             test_invariant_no_value_error,
         )
 
-        print("=== Verification: Action Masking Tests ===")
+        print("=== Action Masking Tests ===")
         tests = [
-            ("all actions valid → argmax unchanged", test_action_masking_all_valid),
-            ("single valid action → always chosen", test_action_masking_single_valid),
-            (
-                "random masks → never picks invalid",
-                test_action_masking_never_picks_invalid,
-            ),
-            ("-inf logits → handled correctly", test_action_masking_inf_handling),
+            ("tutte valide → argmax invariato", test_action_masking_all_valid),
+            ("una sola valida → sempre scelta", test_action_masking_single_valid),
+            ("maschere random → mai invalida", test_action_masking_never_picks_invalid),
+            ("logits -inf → gestiti correttamente", test_action_masking_inf_handling),
         ]
-        for name, test_fn in tests:
+        for name, fn in tests:
             try:
-                test_fn()
+                fn()
                 print(f"  PASS  {name}")
             except AssertionError as e:
                 print(f"  FAIL  {name}: {e}")
 
-        print("\n=== Verification: Invariant Check (no ValueError) ===")
-        game_config = {
-            "num_players": 4,
-            "start_credits": args.credits,
+        print("\n=== Controllo Invarianti (no ValueError) ===")
+        cfg = {
+            "num_players": 2,
+            "start_credits": 1000,
             "big_blind": 20,
             "small_blind": 10,
         }
         try:
-            test_invariant_no_value_error(game_config)
-            print("  PASS  Agent never raises ValueError (50 trials x 500 steps)")
+            test_invariant_no_value_error(cfg)
+            print("  PASS  agente non solleva mai ValueError (50 trial x 500 passi)")
         except AssertionError as e:
             print(f"  FAIL  {e}")
 
