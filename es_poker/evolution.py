@@ -64,16 +64,54 @@ def valuta_agente(
     return total_profit / n_players, total_wins / n_players
 
 
+def _eval_coppia(args: tuple) -> tuple[float, float, float, float]:
+    """worker per coppia antithetica (Algo 2): valuta θ+ε e θ−ε nello stesso job"""
+    base, eps_vec, game_config, opponent_fn, hands_per_eval = args
+
+    import sys
+    from pathlib import Path
+
+    _root = Path(__file__).resolve().parent.parent
+    _pokerl = _root / "pokerl"
+    for _p in (str(_pokerl), str(_root)):
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
+
+    from .agent import masked_argmax
+    from .features import extract_features
+    from .network import SmallNN
+
+    nn = SmallNN()
+
+    def _eval_weights(w):
+        nn.set_weights(w)
+        def agent_fn(state):
+            f = extract_features(
+                state,
+                game_config.get("start_credits", 1000),
+                game_config.get("big_blind", 20),
+            )
+            logits = nn.forward(f)
+            return masked_argmax(logits, state.valid_actions)
+        return valuta_agente(agent_fn, opponent_fn, game_config, hands_per_eval)
+
+    profit_pos, wr_pos = _eval_weights(base + eps_vec)
+    profit_neg, wr_neg = _eval_weights(base - eps_vec)
+    return profit_pos, wr_pos, profit_neg, wr_neg
+
+
 def _eval_individuo(args: tuple) -> tuple[float, float]:
-    """worker per valutazione parallela di un individuo"""
+    """worker per valutazione parallela di un individuo (fallback non-antithetico)"""
     weights, game_config, opponent_fn, hands_per_eval = args
 
     import sys
     from pathlib import Path
 
-    _pokerl = Path(__file__).resolve().parent.parent / "pokerl"
-    if str(_pokerl) not in sys.path:
-        sys.path.insert(0, str(_pokerl))
+    _root = Path(__file__).resolve().parent.parent
+    _pokerl = _root / "pokerl"
+    for _p in (str(_pokerl), str(_root)):
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
 
     from .agent import masked_argmax
     from .features import extract_features
@@ -136,12 +174,20 @@ class EvolutionStrategies:
         winrates = np.zeros(total, dtype=np.float32)
 
         if parallel:
-            n_workers = min(os.cpu_count() or 1, total)
+            n_workers = min(os.cpu_count() or 1, self.half_pop)
             with ProcessPoolExecutor(max_workers=n_workers) as pool:
-                futures = {pool.submit(_eval_individuo, t): idx for idx, t in enumerate(tasks)}
+                pair_tasks = [
+                    (base, eps[i], game_config, opponent_fn, hands_per_eval)
+                    for i in range(self.half_pop)
+                ]
+                futures = {pool.submit(_eval_coppia, t): i for i, t in enumerate(pair_tasks)}
                 for future in as_completed(futures):
-                    idx = futures[future]
-                    raw[idx], winrates[idx] = future.result()
+                    i = futures[future]
+                    profit_pos, wr_pos, profit_neg, wr_neg = future.result()
+                    raw[2 * i] = profit_pos
+                    winrates[2 * i] = wr_pos
+                    raw[2 * i + 1] = profit_neg
+                    winrates[2 * i + 1] = wr_neg
         else:
             for idx, task in enumerate(tasks):
                 raw[idx], winrates[idx] = _eval_individuo(task)
