@@ -1,7 +1,7 @@
 # protocollo di self-play a 3 sprint (Prof. Tronci)
 # sprint A: random init vs random
-# sprint B: warm-start da A vs A congelato
-# sprint A': warm-start da B vs B congelato
+# sprint B-C: co-evoluzione simultanea A ↔ B (opzionale)
+# altrimenti: warm-start sequenziale B vs A, A2 vs B
 
 import csv
 import json
@@ -49,6 +49,7 @@ class TrainingProtocol:
     patience: int = 15
     parallel: bool = False
     seed: int = 42
+    simultaneous: bool = False
 
     def __init__(self):
         self.history: list[dict] = []
@@ -133,6 +134,94 @@ class TrainingProtocol:
 
         return agent_nn, gen_logs
 
+    def _run_coevolution(
+        self,
+        nn_A: SmallNN,
+        nn_B: SmallNN,
+        rng: np.random.Generator,
+    ) -> tuple[SmallNN, SmallNN, list[dict]]:
+        """co-evoluzione simultanea: A e B si allenano l'uno contro l'altro
+
+        ogni generazione:
+          1. A si aggiorna contro B congelato
+          2. B si aggiorna contro A appena aggiornato
+        """
+        es_A = EvolutionStrategies(
+            population_size=self.pop_size,
+            sigma=self.sigma,
+            alpha=self.alpha,
+            rng=rng,
+        )
+        es_B = EvolutionStrategies(
+            population_size=self.pop_size,
+            sigma=self.sigma,
+            alpha=self.alpha,
+            rng=rng,
+        )
+
+        gen_logs = []
+        best_wr_A = -float("inf")
+        best_wr_B = -float("inf")
+        best_weights_A = None
+        best_weights_B = None
+
+        for gen in range(self.generations):
+            t0 = time.perf_counter()
+
+            # A vs B congelato
+            frozen_B = ESAgent(nn_B, self.start_credits, self.big_blind)
+            nn_A, stats_A = es_A.train_generation(
+                nn_A, frozen_B, self._game_config, self.hands_per_eval,
+                parallel=self.parallel,
+            )
+
+            # B vs A aggiornato
+            frozen_A = ESAgent(nn_A, self.start_credits, self.big_blind)
+            nn_B, stats_B = es_B.train_generation(
+                nn_B, frozen_A, self._game_config, self.hands_per_eval,
+                parallel=self.parallel,
+            )
+
+            elapsed = time.perf_counter() - t0
+
+            for stats, label in [(stats_A, "A"), (stats_B, "B")]:
+                stats["generation"] = gen
+                stats["sprint"] = f"coev-{label}"
+                stats["elapsed_s"] = elapsed / 2
+
+                log_entry = {k: v for k, v in stats.items() if k != "best_weights"}
+                gen_logs.append(log_entry)
+
+            if stats_A["best_winrate"] > best_wr_A:
+                best_wr_A = stats_A["best_winrate"]
+                best_weights_A = stats_A["best_weights"]
+            if stats_B["best_winrate"] > best_wr_B:
+                best_wr_B = stats_B["best_winrate"]
+                best_weights_B = stats_B["best_weights"]
+
+            print(
+                f"  [coev] gen {gen:3d} | "
+                f"A wr={stats_A['winrate_mean']:.1%} "
+                f"B wr={stats_B['winrate_mean']:.1%} | "
+                f"||u_A||={stats_A['update_norm']:.1f} "
+                f"||u_B||={stats_B['update_norm']:.1f} | "
+                f"t={elapsed:.1f}s"
+            )
+
+        out = Path(self.output_dir)
+        if best_weights_A is not None:
+            best_nn = SmallNN()
+            best_nn.set_weights(best_weights_A)
+            _salva_pesi(best_nn, out / "best_coev_A.npz")
+            print(f"  [coev] miglior A salvato: wr={best_wr_A:.1%}")
+        if best_weights_B is not None:
+            best_nn = SmallNN()
+            best_nn.set_weights(best_weights_B)
+            _salva_pesi(best_nn, out / "best_coev_B.npz")
+            print(f"  [coev] miglior B salvato: wr={best_wr_B:.1%}")
+
+        return nn_A, nn_B, gen_logs
+
     def run(self):
         """esegue il protocollo completo"""
         out = Path(self.output_dir)
@@ -146,28 +235,42 @@ class TrainingProtocol:
         self.history.extend(logs_A)
         _salva_pesi(nn_A, out / "agent_A.npz")
 
-        # sprint 2: agente B vs A (warm-start da A, A congelato)
-        print("\n=== Sprint 2: Agente B vs Agente A ===")
-        nn_B = SmallNN()
-        nn_B.set_weights(nn_A.get_weights().copy())
-        frozen_A = ESAgent(nn_A, self.start_credits, self.big_blind)
-        nn_B, logs_B = self._run_sprint("B", nn_B, frozen_A, rng)
-        self.history.extend(logs_B)
-        _salva_pesi(nn_B, out / "agent_B.npz")
+        if self.simultaneous:
+            # co-evoluzione: A e B si allenano simultaneamente
+            print("\n=== Co-evoluzione: Agente A ↔ Agente B ===")
+            nn_B = SmallNN()
+            nn_B.set_weights(nn_A.get_weights().copy())
+            nn_A, nn_B, logs_coev = self._run_coevolution(nn_A, nn_B, rng)
+            self.history.extend(logs_coev)
+            _salva_pesi(nn_A, out / "agent_A_coev.npz")
+            _salva_pesi(nn_B, out / "agent_B_coev.npz")
+            final_nn = nn_A  # valutiamo A
+            nn_A_orig = nn_A  # per la valutazione
+        else:
+            # sprint 2: agente B vs A (warm-start da A, A congelato)
+            print("\n=== Sprint 2: Agente B vs Agente A ===")
+            nn_B = SmallNN()
+            nn_B.set_weights(nn_A.get_weights().copy())
+            frozen_A = ESAgent(nn_A, self.start_credits, self.big_blind)
+            nn_B, logs_B = self._run_sprint("B", nn_B, frozen_A, rng)
+            self.history.extend(logs_B)
+            _salva_pesi(nn_B, out / "agent_B.npz")
 
-        # sprint 3: agente A' vs B (warm-start da B, B congelato)
-        print("\n=== Sprint 3: Agente A' vs Agente B ===")
-        nn_A2 = SmallNN()
-        nn_A2.set_weights(nn_B.get_weights().copy())
-        frozen_B = ESAgent(nn_B, self.start_credits, self.big_blind)
-        nn_A2, logs_A2 = self._run_sprint("A2", nn_A2, frozen_B, rng)
-        self.history.extend(logs_A2)
-        _salva_pesi(nn_A2, out / "agent_A2.npz")
+            # sprint 3: agente A' vs B (warm-start da B, B congelato)
+            print("\n=== Sprint 3: Agente A' vs Agente B ===")
+            nn_A2 = SmallNN()
+            nn_A2.set_weights(nn_B.get_weights().copy())
+            frozen_B = ESAgent(nn_B, self.start_credits, self.big_blind)
+            nn_A2, logs_A2 = self._run_sprint("A2", nn_A2, frozen_B, rng)
+            self.history.extend(logs_A2)
+            _salva_pesi(nn_A2, out / "agent_A2.npz")
+            final_nn = nn_A2
+            nn_A_orig = nn_A
 
         # valutazione finale
         print("\n=== Valutazione Finale ===")
-        final = ESAgent(nn_A2, self.start_credits, self.big_blind)
-        frozen_A_agent = ESAgent(nn_A, self.start_credits, self.big_blind)
+        final = ESAgent(final_nn, self.start_credits, self.big_blind)
+        frozen_A_agent = ESAgent(nn_A_orig, self.start_credits, self.big_blind)
         frozen_B_agent = ESAgent(nn_B, self.start_credits, self.big_blind)
 
         vs_random, wr_random = valuta_agente(final, RandomAgent(), self._game_config, num_hands=500)

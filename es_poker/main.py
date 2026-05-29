@@ -28,6 +28,8 @@ def main():
         "-o", "--output", default="./training_output", help="directory output"
     )
     p.add_argument("--seed", type=int, default=42, help="seed random")
+    p.add_argument("--simultaneous", action="store_true",
+                   help="co-evoluzione simultanea A ↔ B")
 
     # evaluate
     e = sub.add_parser("evaluate", help="valida un agente salvato")
@@ -48,6 +50,7 @@ def main():
         proto.alpha = args.alpha
         proto.parallel = args.parallel
         proto.seed = args.seed
+        proto.simultaneous = args.simultaneous
         proto.run()
 
         # validazione automatica
